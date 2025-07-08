@@ -1,9 +1,2 @@
-Vecka,Aktivitet,Kostnad,Budget
-1,Material,30000,300000
-1,Arbetskraft,25000,250000
-2,Material,28000,300000
-2,Arbetskraft,26000,250000
-3,Material,35000,300000
-3,Arbetskraft,27000,250000
-
+Vecka,Aktivitet,Kostnad,Budget,Aktivitet_kod
 
