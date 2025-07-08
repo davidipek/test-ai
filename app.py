@@ -1,23 +1,21 @@
 import streamlit as st
-import streamlit as st
-
-def rerun():
-    try:
-        # För nyare versioner där experimental_rerun finns
-        st.experimental_rerun()
-    except AttributeError:
-        # För versioner där den är borttagen, stoppa scriptet för att "starta om"
-        raise st.script_runner.StopException
+import io
+import pandas as pd
 
 from db_handler import add_company, get_companies, get_company_id, add_project, get_projects, add_cost, get_costs
 from ai_model import train_model, predict_future_cost, total_predicted_cost
 from ui_components import header, metric_box, plot_costs_with_prediction_plotly
 from utils import format_currency
 from config import PAGE_TITLE, WEEKS_AHEAD
-import io
-import pandas as pd
 
 st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+
+# Egen rerun-funktion för att hantera olika Streamlit-versioner
+def rerun():
+    try:
+        st.experimental_rerun()
+    except AttributeError:
+        raise st.script_runner.StopException
 
 # Init session state
 if "company" not in st.session_state:
@@ -36,13 +34,13 @@ def show_company_selection():
         if sel != "-- Välj --" and st.button("Välj företag"):
             st.session_state.company = sel
             st.session_state.project_id = None
-            st.experimental_rerun()
+            rerun()
     with col2:
         if newc.strip() and st.button("Skapa företag"):
             add_company(newc.strip())
             st.session_state.company = newc.strip()
             st.session_state.project_id = None
-            st.experimental_rerun()
+            rerun()
 
 # --- Projektval ---
 def show_project_selection():
@@ -57,13 +55,13 @@ def show_project_selection():
     with col1:
         if proj_sel != "-- Välj --" and st.button("Välj projekt"):
             st.session_state.project_id = projs[projs['project_name'] == proj_sel].iloc[0]['id']
-            st.experimental_rerun()
+            rerun()
     with col2:
         if newp.strip() and new_budget > 0 and st.button("Skapa projekt"):
             add_project(cid, newp.strip(), new_budget)
             projs = get_projects(cid)
             st.session_state.project_id = projs[projs['project_name'] == newp.strip()].iloc[0]['id']
-            st.experimental_rerun()
+            rerun()
 
 # --- Trendindikator ---
 def trend_indicator(current, previous):
@@ -91,9 +89,13 @@ def show_main_tabs():
         remaining = budget - spent
         utilization = (spent / budget) * 100 if budget > 0 else 0
 
-        metric_box("Budget", format_currency(budget))
-        metric_box("Spenderat", format_currency(spent))
-        metric_box("Kvar", format_currency(remaining))
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            metric_box("Budget", format_currency(budget))
+        with col2:
+            metric_box("Spenderat", format_currency(spent))
+        with col3:
+            metric_box("Kvar", format_currency(remaining))
 
         st.progress(min(utilization / 100, 1.0))
         st.caption(f"Budgetutnyttjande: {utilization:.1f}%")
@@ -117,7 +119,7 @@ def show_main_tabs():
             if activity and cost > 0:
                 add_cost(project_id, week, activity, cost)
                 st.success("Kostnad tillagd")
-                st.experimental_rerun()
+                rerun()
 
     elif choice == "Prognoser":
         header("Prognoser")
