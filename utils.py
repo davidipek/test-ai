@@ -1,6 +1,6 @@
+# utils.py
 def format_currency(val):
-    return f"{val:,.0f} kr"
-
-def validate_project_name(name):
-    return bool(name and len(name) > 2)
-
+    try:
+        return f"{int(val):,} kr".replace(",", " ")
+    except:
+        return f"{val} kr"

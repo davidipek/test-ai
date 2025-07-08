@@ -1,87 +1,87 @@
+# db_handler.py
 import sqlite3
 import pandas as pd
+from config import DATA_FILE
 
-DB_NAME = 'data/budgetkoll.db'
+def get_connection():
+    return sqlite3.connect(DATA_FILE, check_same_thread=False)
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS companies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS projects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            project_name TEXT,
-            budget INTEGER,
-            FOREIGN KEY(company_id) REFERENCES companies(id)
-        )
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS costs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER,
-            week INTEGER,
-            activity TEXT,
-            cost INTEGER,
-            FOREIGN KEY(project_id) REFERENCES projects(id)
-        )
-    ''')
+    # Företag
+    c.execute('''CREATE TABLE IF NOT EXISTS companies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL
+    )''')
+    # Projekt
+    c.execute('''CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        project_name TEXT NOT NULL,
+        budget INTEGER NOT NULL,
+        FOREIGN KEY(company_id) REFERENCES companies(id)
+    )''')
+    # Kostnader
+    c.execute('''CREATE TABLE IF NOT EXISTS costs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        week INTEGER NOT NULL,
+        activity TEXT NOT NULL,
+        cost INTEGER NOT NULL,
+        FOREIGN KEY(project_id) REFERENCES projects(id)
+    )''')
     conn.commit()
     conn.close()
 
-def add_company(name):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
+def add_company(name: str):
+    conn = get_connection()
     try:
-        c.execute('INSERT INTO companies (name) VALUES (?)', (name,))
+        conn.execute("INSERT INTO companies (name) VALUES (?)", (name,))
         conn.commit()
     except sqlite3.IntegrityError:
-        pass  # Company exists
+        pass
     conn.close()
 
 def get_companies():
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query('SELECT * FROM companies', conn)
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT * FROM companies ORDER BY name", conn)
     conn.close()
     return df
 
-def get_company_id(name):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('SELECT id FROM companies WHERE name = ?', (name,))
-    res = c.fetchone()
+def get_company_id(name: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM companies WHERE name=?", (name,))
+    row = cur.fetchone()
     conn.close()
-    return res[0] if res else None
+    return row[0] if row else None
 
-def add_project(company_id, project_name, budget):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('INSERT INTO projects (company_id, project_name, budget) VALUES (?, ?, ?)', 
-              (company_id, project_name, budget))
+def add_project(company_id: int, name: str, budget: int):
+    conn = get_connection()
+    conn.execute("INSERT INTO projects (company_id, project_name, budget) VALUES (?, ?, ?)",
+                 (company_id, name, budget))
     conn.commit()
     conn.close()
 
-def get_projects(company_id):
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query(f"SELECT * FROM projects WHERE company_id={company_id}", conn)
+def get_projects(company_id: int):
+    conn = get_connection()
+    df = pd.read_sql_query(
+        "SELECT * FROM projects WHERE company_id=? ORDER BY project_name", conn, params=(company_id,))
     conn.close()
     return df
 
-def add_cost(project_id, week, activity, cost):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('INSERT INTO costs (project_id, week, activity, cost) VALUES (?, ?, ?, ?)', 
-              (project_id, week, activity, cost))
+def add_cost(project_id: int, week: int, activity: str, cost: int):
+    conn = get_connection()
+    conn.execute("INSERT INTO costs (project_id, week, activity, cost) VALUES (?, ?, ?, ?)",
+                 (project_id, week, activity, cost))
     conn.commit()
     conn.close()
 
-def get_costs(project_id):
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query(f"SELECT * FROM costs WHERE project_id={project_id} ORDER BY week", conn)
+def get_costs(project_id: int):
+    conn = get_connection()
+    df = pd.read_sql_query(
+        "SELECT week, activity, cost FROM costs WHERE project_id=? ORDER BY week", conn,
+        params=(project_id,))
     conn.close()
     return df

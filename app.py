@@ -1,158 +1,109 @@
+# app.py
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+from config import PAGE_TITLE, WEEKS_AHEAD
 from db_handler import init_db, add_company, get_companies, get_company_id, add_project, get_projects, add_cost, get_costs
 from ai_model import train_model, predict_future_cost, total_predicted_cost
+from ui_components import header, metric_box, plot_costs_with_prediction
+from utils import format_currency
 
-sns.set(style="whitegrid")
-
-st.set_page_config(page_title="BudgetKoll SaaS", layout="wide")
-
-# Init DB
+st.set_page_config(page_title=PAGE_TITLE, layout="wide")
 init_db()
 
-# --- Session state för att hålla koll på steg och val ---
-if 'step' not in st.session_state:
-    st.session_state.step = 1
+# Initiera session state
+for key in ['company', 'project_id']:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
-if 'company' not in st.session_state:
-    st.session_state.company = None
+tabs = ["Dashboard", "Företag & Projekt", "Kostnader", "Analys & Prognos"]
+choice = st.sidebar.radio("Navigera", tabs)
 
-if 'project_id' not in st.session_state:
-    st.session_state.project_id = None
-
-if 'budget' not in st.session_state:
-    st.session_state.budget = 0
-
-# --- Funktioner för navigation ---
-def go_next():
-    st.session_state.step += 1
-
-def go_back():
-    if st.session_state.step > 1:
-        st.session_state.step -= 1
-
-# --- Steg 1: Företagsval eller ny företag ---
-if st.session_state.step == 1:
-    st.title("🏗️ Välkommen till BudgetKoll SaaS")
-    st.markdown("En kraftfull plattform för byggbolag att planera, följa upp och prognostisera budget och kostnader.")
-
-    companies = get_companies()
-    company_names = companies['name'].tolist()
-    
-    option = st.selectbox("Välj ditt företag eller skriv nytt", options=["-- Välj eller skriv här --"] + company_names)
-    new_company = st.text_input("Eller skapa nytt företag:", "")
-
-    if option != "-- Välj eller skriv här --":
-        st.session_state.company = option
-        st.success(f"Välkommen tillbaka, {option}!")
-        if st.button("Fortsätt"):
-            go_next()
-    elif new_company.strip():
-        add_company(new_company.strip())
-        st.session_state.company = new_company.strip()
-        st.success(f"Nytt företag registrerat: {new_company.strip()}")
-        if st.button("Fortsätt"):
-            go_next()
-
-# --- Steg 2: Visa projekt, skapa nytt projekt ---
-elif st.session_state.step == 2:
-    st.title(f"Företag: {st.session_state.company}")
-    company_id = get_company_id(st.session_state.company)
-    projects = get_projects(company_id)
-
-    st.subheader("Projekt")
-    if projects.empty:
-        st.info("Du har inga projekt ännu. Skapa ett nytt projekt nedan.")
+if choice == "Dashboard":
+    header("📊 Översikt Dashboard", "Snabb vy över alla projekt och status")
+    if not st.session_state.company:
+        st.info("Välj företag i fliken 'Företag & Projekt' för att se Dashboard.")
     else:
-        project_names = projects['project_name'].tolist()
-        sel_project = st.selectbox("Välj ett projekt att arbeta med:", options=["-- Välj projekt --"] + project_names)
-        if sel_project != "-- Välj projekt --":
-            project_row = projects[projects['project_name'] == sel_project].iloc[0]
-            st.session_state.project_id = project_row['id']
-            st.session_state.budget = project_row['budget']
-            if st.button("Öppna projekt"):
-                go_next()
+        cid = get_company_id(st.session_state.company)
+        projs = get_projects(cid)
+        if projs.empty:
+            st.info("Inga projekt att visa.")
+        else:
+            projs['used'] = projs['id'].apply(lambda pid: get_costs(pid)['cost'].sum())
+            projs['remaining'] = projs['budget'] - projs['used']
+            display_df = projs[['project_name', 'budget', 'used', 'remaining']]
+            st.dataframe(display_df)
 
-    st.markdown("---")
-    st.subheader("Skapa nytt projekt")
-    new_proj_name = st.text_input("Projektnamn")
-    new_proj_budget = st.number_input("Budget (kr)", min_value=0, step=1000)
-
-    if new_proj_name and new_proj_budget > 0:
-        if st.button("Lägg till projekt"):
-            add_project(company_id, new_proj_name, int(new_proj_budget))
-            st.success(f"Projekt '{new_proj_name}' tillagt!")
+elif choice == "Företag & Projekt":
+    header("🏢 Företag & Projekt")
+    companies = get_companies()['name'].tolist()
+    sel = st.selectbox("Välj företag", ["-- Välj --"] + companies)
+    newc = st.text_input("Eller skapa nytt företag")
+    if sel != "-- Välj --":
+        st.session_state.company = sel
+    elif newc.strip():
+        add_company(newc.strip())
+        st.session_state.company = newc.strip()
+        st.experimental_rerun()
+    if st.session_state.company:
+        st.success(f"Företag: {st.session_state.company}")
+        cid = get_company_id(st.session_state.company)
+        projs = get_projects(cid)
+        st.subheader("Projekt")
+        if projs.empty:
+            st.info("Inga projekt.")
+        else:
+            proj_sel = st.selectbox("Välj projekt", ["-- Välj --"] + projs['project_name'].tolist())
+            if proj_sel != "-- Välj --":
+                st.session_state.project_id = projs[projs['project_name'] == proj_sel].iloc[0]['id']
+                st.write(f"Valt projekt: {proj_sel}")
+        st.subheader("Skapa nytt projekt")
+        name = st.text_input("Projekt namn")
+        budg = st.number_input("Budget (kr)", min_value=0, step=1000)
+        if name and budg > 0 and st.button("Lägg till projekt"):
+            add_project(cid, name, int(budg))
+            st.success("Projekt skapat")
             st.experimental_rerun()
 
-    if st.button("Tillbaka"):
-        go_back()
-
-# --- Steg 3: Lägg till kostnader och visa analys ---
-elif st.session_state.step == 3:
-    st.title("Projektbudget & Kostnader")
-    company_id = get_company_id(st.session_state.company)
-    projects = get_projects(company_id)
-    project_id = st.session_state.project_id
-
-    if project_id is None:
-        st.error("Inget projekt valt, gå tillbaka och välj ett projekt.")
-        if st.button("Tillbaka"):
-            go_back()
-        st.stop()
-
-    project_row = projects[projects['id'] == project_id].iloc[0]
-    st.subheader(f"Projekt: {project_row['project_name']}")
-    st.markdown(f"**Budget:** {project_row['budget']} kr")
-
-    # Lägg till kostnad
-    st.subheader("Lägg till kostnad")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        week = st.number_input("Vecka (1-52)", min_value=1, max_value=52, step=1)
-    with col2:
-        activity = st.text_input("Aktivitet")
-    with col3:
-        cost = st.number_input("Kostnad (kr)", min_value=0, step=100)
-
-    if st.button("Lägg till kostnad"):
-        if activity.strip() and cost > 0:
-            add_cost(project_id, week, activity.strip(), cost)
-            st.success(f"Kostnad för '{activity}' tillagd för vecka {week}.")
-        else:
-            st.error("Fyll i aktivitet och kostnad.")
-
-    # Visa kostnader och analys
-    costs_df = get_costs(project_id)
-    if costs_df.empty:
-        st.info("Inga kostnader registrerade än.")
+elif choice == "Kostnader":
+    header("💰 Kostnader")
+    if not st.session_state.project_id:
+        st.info("Välj ett projekt i 'Företag & Projekt'-fliken först.")
     else:
         st.subheader("Registrerade kostnader")
-        st.dataframe(costs_df[['week', 'activity', 'cost']])
+        df = get_costs(st.session_state.project_id)
+        if df.empty:
+            st.info("Inga kostnader ännu.")
+        else:
+            st.dataframe(df)
+        st.subheader("Lägg till kostnad")
+        w, c_act, c_amount = st.columns(3)
+        week = w.number_input("Vecka", min_value=1, step=1)
+        act = c_act.text_input("Aktivitet")
+        amt = c_amount.number_input("Kostnad (kr)", min_value=0, step=100)
+        if st.button("Lägg till kostnad"):
+            if act and amt > 0:
+                add_cost(st.session_state.project_id, week, act.strip(), amt)
+                st.success("Kostnad tillagd")
+                st.experimental_rerun()
 
-        # ML prognos
-        model = train_model(costs_df)
-        if model:
-            future_preds = predict_future_cost(model, costs_df['week'].max(), weeks_ahead=8)
-            total_pred = total_predicted_cost(costs_df, model, 8)
-
-            # Budget vs förbrukning
-            st.subheader("Budget vs Förbrukning och Prognos")
-            budget = project_row['budget']
-            used = costs_df['cost'].sum()
-            st.write(f"Budget: {budget} kr")
-            st.write(f"Förbrukat: {used} kr")
-            st.write(f"Prognostiserad total kostnad (nästa 8 veckor): {int(total_pred)} kr")
-
-            # Plotta
-            fig, ax = plt.subplots(figsize=(10, 4))
-            sns.barplot(x='week', y='cost', data=costs_df, ax=ax, color='blue', label='Faktisk')
-            sns.lineplot(x='week', y='predicted_cost', data=future_preds, ax=ax, color='orange', label='Prognos')
-            ax.axhline(budget, color='red', linestyle='--', label='Budget')
-            ax.set_title("Kostnad per vecka och prognos")
-            ax.legend()
-            st.pyplot(fig)
-
-    if st.button("Tillbaka"):
-        go_back()
+elif choice == "Analys & Prognos":
+    header("🔍 Analys & Prognos")
+    if not st.session_state.project_id:
+        st.info("Välj ett projekt först.")
+    else:
+        df = get_costs(st.session_state.project_id)
+        if df.empty:
+            st.info("Inga data att analysera.")
+        else:
+            model = train_model(df)
+            if not model:
+                st.warning("För lite data för prognos.")
+            else:
+                fut = predict_future_cost(model, df['week'].max(), WEEKS_AHEAD)
+                total = total_predicted_cost(df, model, WEEKS_AHEAD)
+                used = df['cost'].sum()
+                st.subheader("Budget vs Prognos")
+                col1, col2, col3 = st.columns(3)
+                metric_box("Använd Budget", format_currency(used), None)
+                metric_box("Totalt Prognostiserad", format_currency(int(total)), format_currency(int(total - used)))
+                fig = plot_costs_with_prediction(df, fut)
+                st.pyplot(fig)
