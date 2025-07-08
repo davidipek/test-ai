@@ -1,3 +1,5 @@
-DATA_FILE = "data/projektdata.csv"
-PAGE_TITLE = "BudgetKoll AI - Byggbolagets Budgetassistent"
-DEFAULT_BUDGET = 500000
+# config.py
+DATA_FILE = "data/budgetkoll.db"
+PAGE_TITLE = "🔧 BudgetKoll SaaS"
+SECTIONS = ["Dashboard","Företag & Projekt","Kostnader","Analys & Prognos","Rapporter","Inställningar"]
+WEEKS_AHEAD = 12
