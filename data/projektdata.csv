@@ -1,3 +1,8 @@
 Vecka,Aktivitet,Kostnad,Budget
-
-
+1,Material,20000,50000
+2,Arbetskraft,15000,50000
+3,Maskiner,10000,50000
+4,Underentreprenör,12000,50000
+1,Arbetskraft,10000,10000
+1,Material,15000,12000
+1,Underentreprenör,22500,20000
