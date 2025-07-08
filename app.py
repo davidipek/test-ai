@@ -10,6 +10,7 @@ st.set_page_config(page_title="BudgetKoll AI", layout="centered")
 st.title("📊 BudgetKoll AI")
 
 df = load_data(DATA_FILE)
+st.write(df.columns)
 df = preprocess_data(df)
 model = train_model(df)
 future_df = predict_future_cost(model, df, total_weeks=df['Vecka'].max())
