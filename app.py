@@ -10,7 +10,6 @@ st.set_page_config(page_title="BudgetKoll AI", layout="centered")
 st.title("📊 BudgetKoll AI")
 
 df = load_data(DATA_FILE)
-st.write(df.columns)
 df = preprocess_data(df)
 model = train_model(df)
 future_df = predict_future_cost(model, df, total_weeks=df['Vecka'].max())
@@ -49,8 +48,8 @@ with st.form("add_data_form"):
     submitted = st.form_submit_button("Lägg till")
 
     if submitted:
-        new_row = pd.DataFrame([[vecka, aktivitet, kostnad, budget]], columns=df.columns)
-        df = pd.concat([df, new_row], ignore_index=True)  # viktigt med ignore_index=True
+        # Skapa en ny rad med exakt rätt kolumner
+        new_row = pd.DataFrame([[vecka, aktivitet, kostnad, budget]], columns=['Vecka', 'Aktivitet', 'Kostnad', 'Budget'])
+        df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv(DATA_FILE, index=False)
         st.success("Ny rad tillagd! Starta om appen för att se uppdatering.")
-
