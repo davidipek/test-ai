@@ -14,6 +14,13 @@ project_name = st.sidebar.text_input("Projektnamn", "Mitt Bygge")
 TOTAL_BUDGET = st.sidebar.number_input("Total budget (kr)", min_value=10000, step=10000, value=550000)
 
 # Ladda och träna modellen
+import os
+
+# Skapa tom CSV om den inte finns eller är tom
+if not os.path.exists(DATA_FILE) or os.stat(DATA_FILE).st_size == 0:
+    df_empty = pd.DataFrame(columns=["Vecka", "Aktivitet", "Kostnad", "Budget"])
+    df_empty.to_csv(DATA_FILE, index=False)
+
 df = load_data(DATA_FILE)
 df = preprocess_data(df)
 model = train_model(df)
