@@ -49,8 +49,7 @@ with st.form("add_data_form"):
 
     if submitted:
         new_row = pd.DataFrame([[vecka, aktivitet, kostnad, budget]], columns=df.columns)
-        df = pd.concat([df, new_row])
+        df = pd.concat([df, new_row], ignore_index=True)  # viktigt med ignore_index=True
         df.to_csv(DATA_FILE, index=False)
         st.success("Ny rad tillagd! Starta om appen för att se uppdatering.")
-        
 
